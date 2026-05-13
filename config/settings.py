@@ -41,7 +41,11 @@ load_dotenv(PROJECT_ROOT / ".env")
 # --------------------------------------------------------------------------- #
 
 OLLAMA_HOST: str = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "qwen2.5-coder:1.5b")
+# Day 2 testing showed qwen2.5-coder:1.5b silently dropped the explanation
+# and Sources-line parts of the multi-part prompt. Upgraded to 3b — same
+# family, ~50% more params, reliably emits code + explanation + Sources.
+# Latency trade: ~17s -> ~30s/query on CPU. See REPORT_DELTAS.md §14.
+OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "qwen2.5-coder:3b")
 OLLAMA_TIMEOUT_SECONDS: int = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "120"))
 
 # --------------------------------------------------------------------------- #
@@ -49,7 +53,9 @@ OLLAMA_TIMEOUT_SECONDS: int = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "120"))
 # --------------------------------------------------------------------------- #
 
 GEMINI_API_KEY: str | None = os.getenv("GEMINI_API_KEY") or None
-GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-1.5-pro-latest")
+# gemini-1.5-pro-latest was retired by Google. Default to 2.5-flash for the
+# fallback path: fast, generous free-tier quota, strong instruction-following.
+GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
 # --------------------------------------------------------------------------- #
 # Embeddings
