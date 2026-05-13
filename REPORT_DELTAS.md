@@ -205,7 +205,85 @@ to 4/5."*
 
 ---
 
-## 11. Metrics to measure during Day 2 / Day 3
+## 11. Gemini fallback model
+
+| Where it appears | Value |
+|---|---|
+| Synopsis / viva guide | "**Google Gemini Pro**" |
+| Implementation (`config/settings.py:GEMINI_MODEL`) | **`gemini-2.5-flash`** |
+
+**Why changed:** "Gemini Pro" was Google's naming in 2024. Since then Google
+retired the 1.5 series and renamed the family. `gemini-1.5-pro-latest`
+returns 404 from the current API. Empirically tested available models on
+2026-05-13; chose `gemini-2.5-flash` for: (a) generous free-tier quota
+(1500 RPD), (b) fast response (~0.5–2 s), (c) strong instruction-following.
+
+**For viva:** *"Google retired the 1.5-pro endpoint between when the spec
+was written and implementation. I tested the currently-available models and
+picked gemini-2.5-flash as the best balance of latency, free-tier quota, and
+instruction-following for the fallback path."*
+
+---
+
+## 12. Query rewriter — backend choice
+
+The query rewriter is implemented in `src.generation.llm_client.rewrite_query`.
+It transforms a developer's natural-language question into a documentation-
+style retrieval query (Query2Doc pattern).
+
+**Backend chosen: Gemini 2.5-flash, with Ollama as last-resort fallback.**
+
+Side-by-side comparison on 5 representative queries (2026-05-13):
+
+| Query | Ollama (qwen 1.5b) | Gemini 2.5-flash |
+|---|---|---|
+| "endpoint that needs login" | Run-on prose about `Depends` | `Path operation authentication, Security dependency, OAuth2PasswordBearer` |
+| "async stuff after responding" | "async response handling" | `BackgroundTasks add_task run async operations after response` |
+| "hide some fields" | "hide fields in response of user api" | `Pydantic response_model exclude fields from output` |
+
+Gemini surfaces specific FastAPI class names (`BackgroundTasks`,
+`OAuth2PasswordBearer`, `response_model`) that match the embedded chunks;
+the 1.5B Ollama model just rephrases without adding terminology.
+
+**Latency cost:** +1-3 s per query for the rewrite step. Worth it because
+retrieval quality is the upstream input to every other RAG metric.
+
+---
+
+## 14. Primary LLM upgrade (qwen 1.5b → 3b)
+
+| Phase | Value |
+|---|---|
+| Day 1 default | `qwen2.5-coder:1.5b` |
+| **Day 2 default (current)** | **`qwen2.5-coder:3b`** |
+
+**Reason:** During Day 2 testing the 1.5b model dropped the explanation
+and Sources-line parts of the multi-part prompt — a known limitation of
+sub-2B code-specialised models documented in the IFEval++ literature
+(reliability drops 60%+ at <2B for multi-instruction prompts). Empirical
+head-to-head test on the canonical FastAPI hello-world prompt:
+
+| Component | qwen 1.5b | qwen 3b |
+|---|---|---|
+| Code | ✓ 7 lines, correct | ✓ 7 lines, correct |
+| Explanation paragraph | ✗ Bullets (prompt asked prose) | ✓ Proper paragraph |
+| `Sources: [...]` line | ✗ Embedded in prose | ✓ Parsable line |
+| Latency (full RAG prompt, CPU) | 17 s | 30 s |
+
+**Latency implication for live demo:** ~30 s per query on CPU is too slow
+for a live demo. Day 4 plan: pre-cache the 5 representative demo query
+responses so the live demo replays at <1 s; the architecture still uses
+3b for the offline test corpus and the report-grade measurements.
+
+**Viva framing:** *"During testing I observed that the smaller 1.5b model
+satisfied only one of three prompt requirements per call. I evaluated 3b,
+which followed the full multi-part format reliably, and selected it as
+the primary. The latency cost is mitigated by pre-cached demo responses
+in the live demonstration."*
+
+---
+
+## 15. Metrics to measure during Day 2 / Day 3
 
 The viva guide reports these — none are yet measured by our implementation.
 Each will be measured during Day 3's testing pass and added to this file:
